@@ -11,6 +11,8 @@ let gameRunning = true;
 let pacman = { x: 1, y: 1, direction: 'right' };
 let dots = [];
 let walls = [];
+let ghosts = [];
+let ghostMoveCounter = 0; // Add counter to slow down ghost movement
 
 // Game maze layout (1 = wall, 0 = empty, 2 = dot)
 const maze = [
@@ -60,6 +62,15 @@ function initGame() {
     lives = 3;
     gameRunning = true;
     pacman = { x: 1, y: 1, direction: 'right' };
+    ghostMoveCounter = 0;
+    
+    // Initialize ghosts
+    ghosts = [
+        { x: 9, y: 9, direction: 'up', color: '#ff0000' },    // Red ghost
+        { x: 10, y: 9, direction: 'up', color: '#ffb8ff' },  // Pink ghost
+        { x: 9, y: 10, direction: 'left', color: '#00ffff' }, // Cyan ghost
+        { x: 10, y: 10, direction: 'left', color: '#ffb852' } // Orange ghost
+    ];
     
     updateUI();
     gameLoop();
@@ -84,6 +95,86 @@ function update() {
             dots.splice(i, 1);
             score += 10;
             updateUI();
+        }
+    }
+    
+    // Update ghosts (move them slower than Pacman)
+    ghostMoveCounter++;
+    if (ghostMoveCounter >= 15) { // Move ghosts every 15 frames (slower than Pacman)
+        ghostMoveCounter = 0;
+        
+        ghosts.forEach(ghost => {
+            // Simple AI: try to move towards Pacman, or move randomly
+            const directions = ['up', 'down', 'left', 'right'];
+            let possibleMoves = [];
+            
+            // Check all possible moves
+            directions.forEach(dir => {
+                let newX = ghost.x;
+                let newY = ghost.y;
+                
+                switch (dir) {
+                    case 'up': newY--; break;
+                    case 'down': newY++; break;
+                    case 'left': newX--; break;
+                    case 'right': newX++; break;
+                }
+                
+                if (isValidMove(newX, newY)) {
+                    possibleMoves.push({ direction: dir, x: newX, y: newY });
+                }
+            });
+            
+            if (possibleMoves.length > 0) {
+                // Try to move towards Pacman
+                let bestMove = possibleMoves[0];
+                let shortestDistance = Math.abs(bestMove.x - pacman.x) + Math.abs(bestMove.y - pacman.y);
+                
+                possibleMoves.forEach(move => {
+                    const distance = Math.abs(move.x - pacman.x) + Math.abs(move.y - pacman.y);
+                    if (distance < shortestDistance) {
+                        shortestDistance = distance;
+                        bestMove = move;
+                    }
+                });
+                
+                // Add some randomness (40% chance to move randomly)
+                if (Math.random() < 0.4) {
+                    bestMove = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                }
+                
+                ghost.x = bestMove.x;
+                ghost.y = bestMove.y;
+                ghost.direction = bestMove.direction;
+            }
+        });
+    }
+    
+    // Check ghost collision with Pacman
+    for (const ghost of ghosts) {
+        if (ghost.x === pacman.x && ghost.y === pacman.y) {
+            lives--;
+            updateUI();
+            
+            if (lives <= 0) {
+                endGame(false);
+                return;
+            } else {
+                // Reset positions after collision
+                pacman.x = 1;
+                pacman.y = 1;
+                pacman.direction = 'right';
+                
+                // Reset ghosts to starting positions
+                ghosts[0] = { x: 9, y: 9, direction: 'up', color: '#ff0000' };
+                ghosts[1] = { x: 10, y: 9, direction: 'up', color: '#ffb8ff' };
+                ghosts[2] = { x: 9, y: 10, direction: 'left', color: '#00ffff' };
+                ghosts[3] = { x: 10, y: 10, direction: 'left', color: '#ffb852' };
+                
+                // Brief pause after collision
+                setTimeout(() => {}, 500);
+            }
+            break;
         }
     }
     
@@ -153,6 +244,37 @@ function render() {
     ctx.arc(centerX, centerY, radius, startAngle, endAngle);
     ctx.lineTo(centerX, centerY);
     ctx.fill();
+    
+    // Draw ghosts
+    ghosts.forEach(ghost => {
+        ctx.fillStyle = ghost.color;
+        ctx.beginPath();
+        
+        const ghostCenterX = ghost.x * CELL_SIZE + CELL_SIZE / 2;
+        const ghostCenterY = ghost.y * CELL_SIZE + CELL_SIZE / 2;
+        const ghostRadius = CELL_SIZE / 2 - 3;
+        
+        // Draw ghost body (circle)
+        ctx.arc(ghostCenterX, ghostCenterY, ghostRadius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw ghost eyes
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(ghostCenterX - 6, ghostCenterY - 6, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(ghostCenterX + 6, ghostCenterY - 6, 3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(ghostCenterX - 6, ghostCenterY - 6, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(ghostCenterX + 6, ghostCenterY - 6, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+    });
 }
 
 // Handle keyboard input
